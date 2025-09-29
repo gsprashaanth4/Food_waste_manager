@@ -1,194 +1,224 @@
+import heapq
 from collections import defaultdict
 from datetime import datetime, timedelta
 
 
-class Node:
-    def __init__(self, key, value):
-        self.key = key
-        self.value = value
-        self.next = None
+food_heap = []
 
 
-class LinkedList:
+ngo_needs = defaultdict(list)
+
+
+ngo_locations = {}
+
+class Graph:
+    """A weighted graph to represent city routes."""
     def __init__(self):
-        self.head = None
+        self.adj = defaultdict(dict)
 
-    def add_top(self, key, value):
-        new_node = Node(key, value)
-        new_node.next = self.head
-        self.head = new_node
+    def add_edge(self, u, v, weight):
+        """Adds a two-way weighted edge between u and v."""
+        self.adj[u][v] = weight
+        self.adj[v][u] = weight
 
-    def add_bottom(self, key, value):
-        new_node = Node(key, value)
-        if self.head is None:
-            self.head = new_node
-            return
-        temp = self.head
-        while temp.next:
-            temp = temp.next
-        temp.next = new_node
+    def dijkstra(self, start_node, end_node):
+        """Finds the shortest path from start to end using Dijkstra's algorithm."""
+        if start_node not in self.adj or end_node not in self.adj:
+            return None, float('inf')
+        
+        distances = {node: float('inf') for node in self.adj}
+        previous_nodes = {node: None for node in self.adj}
+        distances[start_node] = 0
+        
+        pq = [(0, start_node)]  # Priority queue: (distance, node)
 
-    def insert_at_position(self, key, value, position):
-        new_node = Node(key, value)
-        if position == 1:
-            new_node.next = self.head
-            self.head = new_node
-            return
+        while pq:
+            current_distance, current_node = heapq.heappop(pq)
 
-        temp = self.head
-        for _ in range(position - 2):
-            if temp is None:
-                print("Position out of range")
-                return
-            temp = temp.next
-
-        if temp is None:
-            print("Position out of range")
-            return
-
-        new_node.next = temp.next
-        temp.next = new_node
-
-    def delete_head(self):
-        if self.head is None:
-            print("List is empty (underflow_)")
-            return
-        self.head = self.head.next
-
-    def delete_tail(self):
-        if self.head is None:
-            print("List is empty (underflow_)")
-            return
-        if self.head.next is None:  # only one element
-            self.head = None
-            return
-        temp = self.headm
-        while temp.next.next:
-            temp = temp.next
-        temp.next = None
-
-    def delete_by_value(self, key, value):
-        """Delete node where key == food type AND value == NGO"""
-        temp = self.head
-
-        # if head matches
-        if temp and temp.key == key and temp.value == value:
-            self.head = temp.next
-            return
-
-        prev = None
-        while temp:
-            if temp.key == key and temp.value == value:
-                prev.next = temp.next
-                return
-            prev = temp
-            temp = temp.next
-
-        print(f"Value ({key}, {value}) not found")
-
-    def display(self):
-        if self.head is None:
-            print("underflow_")
-            return
-        temp = self.head
-        while temp:
-            print(f"[{temp.key} : {temp.value}]", end=" -> ")
-            temp = temp.next
-        print("null")
-
-
-
-class FoodHeap:
-    def __init__(self):
-        self.heap = []
-
-    def add_food(self, desc, goes_out_in, goi_type, food_type, amt, amt_type):
-        if goi_type == "days":
-            goi = datetime.now() + timedelta(days=goes_out_in)
-        elif goi_type == "hrs":
-            goi = datetime.now() + timedelta(hours=goes_out_in)
-        else:
-            raise ValueError("goi_type must be 'days' or 'hrs'")
-
-        values = [desc, goi, food_type, amt, amt_type]
-        self.heap.append(values)
-        self.sift_up(len(self.heap) - 1)
-
-    def sift_up(self, index):
-        while index > 0:
-            parent = (index - 1) // 2
-            if self.heap[parent][1] > self.heap[index][1]:
-                self.heap[parent], self.heap[index] = self.heap[index], self.heap[parent]
-                index = parent
-            else:
+            if current_node == end_node:
                 break
 
-    def sift_down(self, index):
-        size = len(self.heap)
-        while True:
-            left = 2 * index + 1
-            right = 2 * index + 2
-            smallest = index
+            if current_distance > distances[current_node]:
+                continue
 
-            if left < size and self.heap[left][1] < self.heap[smallest][1]:
-                smallest = left
-            if right < size and self.heap[right][1] < self.heap[smallest][1]:
-                smallest = right
+            for neighbor, weight in self.adj[current_node].items():
+                distance = current_distance + weight
+                if distance < distances[neighbor]:
+                    distances[neighbor] = distance
+                    previous_nodes[neighbor] = current_node
+                    heapq.heappush(pq, (distance, neighbor))
 
-            if smallest != index:
-                self.heap[index], self.heap[smallest] = self.heap[smallest], self.heap[index]
-                index = smallest
-            else:
-                break
+        path = []
+        node = end_node
+        if distances[node] == float('inf'):
+            return None, float('inf')
+            
+        while node is not None:
+            path.append(node)
+            node = previous_nodes[node]
+        
+        return path[::-1], distances[end_node]
 
-    def redo_heap(self):
-        n = len(self.heap)
-        for i in range(n // 2 - 1, -1, -1):
-            self.sift_down(i)
 
-    def pop_expiring(self):
-        if not self.heap:
-            return None
+city_map = Graph()
 
-        if datetime.now() >= self.heap[0][1]:
-            root = self.heap[0]
-            last = self.heap.pop()
-            if self.heap:
-                self.heap[0] = last
-                self._sift_down(0)
-            return root
-        return None
 
+
+def add_route():
+    """Lets the user add a new route to the city map."""
+    print("\n--- Add a New Route ---")
+    try:
+        loc1 = input("Enter the first location (e.g., Restaurant A): ")
+        loc2 = input("Enter the second location (e.g., NGO Shelter): ")
+        
+        if not loc1 or not loc2:
+            print("Error: Location names cannot be empty.")
+            return
+            
+        time = int(input(f"Enter travel time in minutes between {loc1} and {loc2} (e.g., 15): "))
+        
+        if time <= 0:
+            print("Error: Time must be a positive number.")
+            return
+            
+        city_map.add_edge(loc1, loc2, time)
+        print(f"Route added: {loc1} <-> {loc2} = {time} mins")
+        
+    except ValueError:
+        print("Error: Invalid time. Please enter a number.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+def register_ngo_need():
+    """Lets the user register a new NGO and its need."""
+    print("\n--- Register an NGO Need ---")
+    ngo_name = input("Enter the NGO's name (e.g., City Shelter): ")
+    ngo_loc = input(f"Enter the location of '{ngo_name}' (e.g., NGO Shelter): ")
+    food_type = input(f"What food type does '{ngo_name}' need? (e.g., Vegetables): ")
     
+    if not ngo_name or not ngo_loc or not food_type:
+        print("Error: All fields are required.")
+        return
 
-class HashMap:
-    def __init__(self, size=10):
-        self.size = size
-        self.buckets = [LinkedList() for _ in range(size)]
+    ngo_needs[food_type].append(ngo_name)
+    ngo_locations[ngo_name] = ngo_loc
+    print(f"Need registered: '{ngo_name}' at '{ngo_loc}' needs '{food_type}'.")
 
-    def _hash(self, key):
-        return sum(ord(c) for c in key) % self.size
+def add_surplus_food():
+    """Lets the user add a new surplus food item."""
+    print("\n--- Add Surplus Food ---")
+    try:
+        provider_loc = input("Enter the food provider's location (e.g., Restaurant A): ")
+        desc = input("Enter a description (e.g., Box of Carrots): ")
+        food_type = input("Enter the food type (e.g., Vegetables): ")
+        
+        if not provider_loc or not desc or not food_type:
+            print("Error: All fields are required.")
+            return
+            
+        hours_to_expiry = int(input("How many HOURS until it expires? (e.g., 6): "))
+        
+        if hours_to_expiry <= 0:
+            print("Error: Hours must be a positive number.")
+            return
+            
+        expiry_time = datetime.now() + timedelta(hours=hours_to_expiry)
+        
+        item = (expiry_time, desc, food_type, provider_loc)
+        
+        heapq.heappush(food_heap, item)
+        print("Food item added to the priority queue!")
+        
+    except ValueError:
+        print("Error: Invalid number. Please enter hours as a number.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
-    def insert(self, key, value):
-        idx = self._hash(key)
-        self.buckets[idx].add_bottom(key, value)
+def find_match_and_route():
+    """Main logic to find the best match using Dijkstra's algorithm."""
+    print("\n--- Running Matchmaking Algorithm ---")
+    
+    if not food_heap:
+        print("No surplus food available to match.")
+        return
 
-    def get(self, key):
-        idx = self._hash(key)
-        return self.buckets[idx].get_values(key)
+    expiry_time, desc, food_type, provider_loc = heapq.heappop(food_heap)
+    
+    if expiry_time < datetime.now():
+        print(f"Item '{desc}' from '{provider_loc}' has already expired. Discarding.")
+        return
 
-    def delete_by_key(self, key):
-        idx = self._hash(key)
-        return self.buckets[idx].delete_all_by_key(key)
+    print(f"Processing urgent item: '{desc}' ({food_type}) from '{provider_loc}'")
+    
+    potential_ngos = ngo_needs.get(food_type)
+    if not potential_ngos:
+        print(f"No NGOs found for '{food_type}'. Item is removed from queue.")
+        return
 
-    def delete_by_value(self, key, value):
-        idx = self._hash(key)
-        return self.buckets[idx].delete_by_value(key, value)
+    best_ngo, best_route, min_time = None, None, float('inf')
 
-    def display(self):
-        for i, bucket in enumerate(self.buckets):
-            print(f"Bucket {i}: ", end="")
-            bucket.display()
+    print(f"Checking routes from '{provider_loc}' using Dijkstra's Algorithm...")
+    for ngo_name in potential_ngos:
+        ngo_loc = ngo_locations.get(ngo_name)
+        
+        if ngo_loc:
+            # --- THIS IS THE KEY CHANGE ---
+            # Call Dijkstra's algorithm to find the true shortest path
+            route, time = city_map.dijkstra(provider_loc, ngo_loc)
+            
+            if route:
+                print(f"  > Shortest path to '{ngo_name}' at '{ngo_loc}' found: {time} minutes.")
+                if time < min_time:
+                    min_time = time
+                    best_ngo = ngo_name
+                    best_route = route
+            else:
+                print(f"  > No path found to '{ngo_name}' at '{ngo_loc}'.")
+
+    if best_ngo:
+        print("\n*** MATCH FOUND! ***")
+        print(f"  Deliver:     {desc}")
+        print(f"  From:        {provider_loc}")
+        print(f"  To:          NGO '{best_ngo}' at '{ngo_locations[best_ngo]}'")
+        print(f"  Travel Time: {min_time} minutes")
+        print(f"  Route:       {' -> '.join(best_route)}")
+        
+        ngo_needs[food_type].remove(best_ngo)
+    else:
+        print("\nNo NGOs with a valid route were found for this item.")
+        heapq.heappush(food_heap, (expiry_time, desc, food_type, provider_loc))
+
+
+
+
+def main():
+    """Runs the main interactive menu for the user."""
+    while True:
+        print("\n--- Food Waste Reduction Manager ---")
+        print("1. Add a Route to the Map")
+        print("2. Register an NGO Need")
+        print("3. Add Surplus Food")
+        print("4. Find Match for Next Urgent Item")
+        print("5. Exit")
+        
+        choice = input("Enter your choice (1-5): ")
+        
+        if choice == '1':
+            add_route()
+        elif choice == '2':
+            register_ngo_need()
+        elif choice == '3':
+            add_surplus_food()
+        elif choice == '4':
+            find_match_and_route()
+        elif choice == '5':
+            print("Exiting program.")
+            break
+        else:
+            print("Invalid choice. Please enter a number between 1 and 5.")
+
+if __name__ == "__main__":
+    main()
 
 
 
